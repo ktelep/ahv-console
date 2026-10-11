@@ -1,0 +1,25 @@
+{
+  "$reserved": {"$fv": "v4.r4"},
+  "$objectType": "prism.v4.config.GetTaskApiResponse",
+  "data": {
+    "$reserved": {"$fv": "v4.r4"},
+    "$objectType": "prism.v4.config.Task",
+    "extId": "ZXJnb24=:00000000-0000-4000-8000-000000000001",
+    "operation": "GenerateVmConsoleToken",
+    "operationDescription": "Generate VM console token",
+    "progressPercentage": 100,
+    "status": "SUCCEEDED",
+    "completionDetails": [
+      {
+        "value": "REDACTED_CONSOLE_TOKEN",
+        "$reserved": {"$fv": "v1.r0"},
+        "$objectType": "common.v1.config.KVPair",
+        "name": "VmConsoleToken"
+      },
+      {
+        "value": "/console/launch/00000000-0000-4000-8000-000000000002",
+        "name": "WsUri"
+      }
+    ]
+  }
+}

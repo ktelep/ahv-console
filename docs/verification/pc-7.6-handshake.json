@@ -1,0 +1,63 @@
+{
+  "observedOn": "2026-10-10",
+  "evidenceKind": "sanitized live observation summary, not raw API fixture",
+  "pcVersion": "pc.7.6",
+  "tls": {
+    "systemTrustResult": "self-signed certificate",
+    "verificationDisabledForDesignatedEndpointWithUserAuthorization": true
+  },
+  "vmLookup": {
+    "apiVersion": "v4.3",
+    "httpStatus": 200,
+    "exactNameMatchCount": 1,
+    "powerState": "ON"
+  },
+  "authentication": {
+    "rest": "HTTP Basic username/password",
+    "cookieName": "NTNX_SESSION_ID",
+    "cookiePath": "/",
+    "cookieSecure": true,
+    "cookieHttpOnly": true,
+    "cookieSameSite": "Lax",
+    "preExistingPrismBrowserSession": false,
+    "websocket": "REST-issued cookie and console token; no HTTP credentials in WebSocket browser context"
+  },
+  "tokenSubmission": {
+    "apiVersion": "v4.3",
+    "httpStatus": 202,
+    "requestBody": null,
+    "requestIdHeader": "NTNX-Request-Id",
+    "responseType": "vmm.v4.ahv.config.GenerateConsoleTokenApiResponse",
+    "dataType": "prism.v4.config.TaskReference",
+    "taskIdFormat": "prefix:uuid"
+  },
+  "taskRetrieval": {
+    "apiVersion": "v4.4",
+    "httpStatus": 200,
+    "status": "SUCCEEDED",
+    "completionDetails": {
+      "shape": "array of name/value entries",
+      "stringValueNames": ["VmConsoleToken", "WsUri"]
+    }
+  },
+  "websocket": {
+    "pathTemplate": "/console/launch/<VM_UUID>",
+    "queryParameter": "VmConsoleToken",
+    "origin": "configured PC HTTPS origin",
+    "subprotocol": "",
+    "frameType": "binary"
+  },
+  "rfb": {
+    "version": "3.8",
+    "greeting": "RFB 003.008\n",
+    "securityTypes": [1],
+    "securityResult": "success",
+    "sharedClientInit": true,
+    "serverInitReceived": true,
+    "width": 1024,
+    "height": 768,
+    "bitsPerPixel": 32,
+    "guestKeyboardOrPointerInputSent": false
+  },
+  "cleanup": "probe connections and isolated browser contexts closed"
+}

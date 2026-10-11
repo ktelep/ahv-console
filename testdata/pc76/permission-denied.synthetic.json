@@ -1,0 +1,11 @@
+{
+  "data": {
+    "$objectType": "vmm.v4.error.ErrorResponse",
+    "error": [
+      {
+        "code": "SYNTHETIC_PERMISSION_DENIED",
+        "message": "Synthetic fixture: console permission denied."
+      }
+    ]
+  }
+}

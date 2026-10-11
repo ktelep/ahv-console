@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AHV Console</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header>
+    <strong>AHV Console</strong>
+    <span id="status" role="status">Authorizing local session…</span>
+    <button id="reconnect" type="button">Reconnect</button>
+    <button id="cad" type="button" disabled>Ctrl+Alt+Del</button>
+    <a href="/novnc/SOURCE.tar.gz">noVNC source</a>
+  </header>
+  <main id="screen" aria-label="VM console"></main>
+</body>
+</html>

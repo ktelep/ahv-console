@@ -1,0 +1,12 @@
+{
+  "api_version": "3.1",
+  "state": "ERROR",
+  "message_list": [
+    {
+      "reason": "AUTHENTICATION_REQUIRED",
+      "message": "Authentication required.",
+      "details": "Basic realm=\"Intent Gateway Login Required\""
+    }
+  ],
+  "code": 401
+}

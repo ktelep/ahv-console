@@ -1,0 +1,7 @@
+{
+  "$objectType": "vmm.v4.ahv.config.GenerateConsoleTokenApiResponse",
+  "data": {
+    "$objectType": "prism.v4.config.TaskReference",
+    "extId": "ZXJnb24=:00000000-0000-4000-8000-000000000001"
+  }
+}

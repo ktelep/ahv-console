@@ -1,0 +1,5 @@
+* text=auto eol=lf
+*.tar.gz -text
+*.zip -text
+*.png -text
+internal/viewer/assets/novnc/** linguist-vendored

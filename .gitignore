@@ -1,0 +1,13 @@
+/dist/
+/publish/
+/.opencode/
+/openspec/
+/docs/verification/test-resources.md
+/docs/verification/implementation.md
+/.playwright-mcp/
+.env
+.env.*
+__pycache__/
+*.pyc
+*.test
+coverage.out

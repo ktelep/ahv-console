@@ -1,0 +1,7 @@
+{
+  "$objectType": "vmm.v4.ahv.config.ListVmsApiResponse",
+  "metadata": {
+    "totalAvailableResults": 0,
+    "flags": [{"name": "hasError", "value": false}]
+  }
+}

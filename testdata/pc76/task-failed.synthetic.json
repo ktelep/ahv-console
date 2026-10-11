@@ -1,0 +1,14 @@
+{
+  "$objectType": "prism.v4.config.GetTaskApiResponse",
+  "data": {
+    "$objectType": "prism.v4.config.Task",
+    "extId": "ZXJnb24=:00000000-0000-4000-8000-000000000001",
+    "status": "FAILED",
+    "errorMessages": [
+      {
+        "code": "SYNTHETIC_TASK_FAILURE",
+        "message": "Synthetic fixture: console generation failed."
+      }
+    ]
+  }
+}

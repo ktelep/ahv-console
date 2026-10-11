@@ -1,0 +1,21 @@
+{
+  "$objectType": "prism.v4.config.GetTaskApiResponse",
+  "data": {
+    "status": "FAILED",
+    "operation": "GenerateVmConsoleToken",
+    "errorMessages": [
+      {
+        "$reserved": {"$fv": "v4.r4"},
+        "$objectType": "prism.v4.error.AppMessage",
+        "message": "Failed to perform the operation on the VM with UUID '00000000-0000-4000-8000-000000000002' as it is not authorized.",
+        "severity": "ERROR",
+        "code": "VMM-30500",
+        "locale": "en_US",
+        "errorGroup": "VM_UNAUTHORIZED_REQUEST",
+        "argumentsMap": {
+          "vm_uuid": "00000000-0000-4000-8000-000000000002"
+        }
+      }
+    ]
+  }
+}
