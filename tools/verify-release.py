@@ -32,8 +32,26 @@ def unpack(path):
     return entries
 
 
+def resolve_release_directory(directory):
+    """Accept a flat bundle or the single version folder from older uploads."""
+    directory = Path(directory)
+    if directory.is_symlink() or not directory.is_dir():
+        raise ValueError(f"Release directory is missing or unsafe: {directory}")
+    if (directory / "release-manifest.json").is_file():
+        return directory
+    children = list(directory.iterdir())
+    candidates = [path for path in children if path.is_dir() and not path.is_symlink() and (path / "release-manifest.json").is_file()]
+    if len(candidates) > 1:
+        raise ValueError("Multiple release directories found; specify the intended version directory explicitly")
+    if len(candidates) == 1:
+        if len(children) != 1:
+            raise ValueError("Unexpected sibling files in downloaded artifact; specify the release directory explicitly")
+        return candidates[0]
+    raise ValueError(f"No release-manifest.json at {directory} or in a single immediate child directory; check artifact upload/download paths")
+
+
 def verify(release):
-    release = Path(release)
+    release = resolve_release_directory(release)
     manifest = json.loads((release / "release-manifest.json").read_text())
     sums = {name: digest for digest, name in (line.split() for line in (release / "SHA256SUMS").read_text().splitlines())}
     actual = {path.name: sha256(path.read_bytes()) for path in release.iterdir() if path.is_file() and path.name != "SHA256SUMS"}

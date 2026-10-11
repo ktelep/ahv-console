@@ -88,9 +88,20 @@ the automated checks, builds and verifies bundles, then executes the exact
 packaged binaries' offline smoke checks on all four native runner targets. It
 creates the GitHub release with those same checked assets only after these jobs
 succeed, using the repository's built-in workflow token.
+The artifact upload uses the exact version directory without a wildcard parent,
+so download produces a flat directory with `release-manifest.json` at its root.
+Verification and smoke tools also accept a single nested version directory from
+older uploads, rejecting ambiguous or unexpected layouts.
 GitHub-built hashes can differ from local hashes if the compiler distribution
 differs; each published set has its own matching `SHA256SUMS` and compiler record.
 The repository source at the tag is the source for that workflow-built release.
+
+If fixing a failed tag-triggered run, remember that re-running the old run uses
+the workflow revision from its original tag/commit. A workflow fix committed to
+`main` does not retroactively update that run. The release tag must point at the
+fixed commit, or a new version/tag must be prepared. Recreate a failed initial
+tag only deliberately when no release has been published; do not overwrite a
+published release's tag.
 
 If publishing the locally prepared artifacts instead, omit the tag-triggered
 workflow from your repository before pushing the tag, then upload from the

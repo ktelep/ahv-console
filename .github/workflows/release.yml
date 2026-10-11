@@ -29,7 +29,9 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: checked-release
-          path: publish/releases/*/*
+          # Upload the directory itself: wildcard parents preserve the version
+          # folder and would nest the downloaded manifest unexpectedly.
+          path: publish/releases/${{ github.ref_name }}/
           if-no-files-found: error
   native:
     needs: build

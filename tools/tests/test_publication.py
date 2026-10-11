@@ -15,6 +15,10 @@ spec = importlib.util.spec_from_file_location("publication", TOOLS / "prepare-pu
 publication = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(publication)
 
+verifier_spec = importlib.util.spec_from_file_location("release_verifier", TOOLS / "verify-release.py")
+verifier = importlib.util.module_from_spec(verifier_spec)
+verifier_spec.loader.exec_module(verifier)
+
 
 class PublicPolicyTests(unittest.TestCase):
     def test_private_material_is_rejected_without_echoing_it(self):
@@ -82,6 +86,38 @@ class ArchiveTests(unittest.TestCase):
         with zipfile.ZipFile(io.BytesIO(zipped)) as archive:
             self.assertEqual(archive.read("app/LICENSE"), b"license")
             self.assertEqual(archive.getinfo("app/ahv-console").external_attr >> 16 & 0o777, 0o755)
+
+
+class DownloadLayoutTests(unittest.TestCase):
+    def test_flat_and_version_nested_artifacts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            flat = root / "flat"
+            flat.mkdir()
+            (flat / "release-manifest.json").write_text("{}")
+            self.assertEqual(verifier.resolve_release_directory(flat), flat)
+            download = root / "release-assets"
+            nested = download / "v0.1.0"
+            nested.mkdir(parents=True)
+            (nested / "release-manifest.json").write_text("{}")
+            self.assertEqual(verifier.resolve_release_directory(download), nested)
+
+    def test_missing_ambiguous_and_unexpected_layouts_fail_clearly(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with self.assertRaisesRegex(ValueError, "No release-manifest"):
+                verifier.resolve_release_directory(root)
+            with self.assertRaisesRegex(ValueError, "missing or unsafe"):
+                verifier.resolve_release_directory(root / "missing")
+            for version in ("v0.1.0", "v0.2.0"):
+                child = root / version
+                child.mkdir()
+                (child / "release-manifest.json").write_text("{}")
+            with self.assertRaisesRegex(ValueError, "Multiple release"):
+                verifier.resolve_release_directory(root)
+            (root / "v0.2.0" / "release-manifest.json").unlink()
+            with self.assertRaisesRegex(ValueError, "Unexpected sibling"):
+                verifier.resolve_release_directory(root)
 
 
 if __name__ == "__main__":
