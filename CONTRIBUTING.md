@@ -28,7 +28,7 @@ dependency versions. Do not casually reformat vendored third-party files.
 Changes to MPL-covered files retain MPL-2.0 and require matching source delivery.
 See `THIRD_PARTY_NOTICES.md`.
 
-Prepare release artifacts with `python3 tools/prepare-publication.py 0.1.0`.
+Prepare release artifacts with `python3 tools/prepare-publication.py 0.1.1`.
 Publishing instructions and directory layout are in `docs/publishing.md`.
 
 Contributions to original project files are provided under the project MIT

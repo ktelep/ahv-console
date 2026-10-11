@@ -11,8 +11,8 @@ go vet ./...
 go test -race ./...
 python3 -m unittest discover -s tools/tests
 python3 tools/verify-public.py
-python3 tools/prepare-publication.py 0.1.0
-python3 tools/verify-release.py publish/releases/v0.1.0
+python3 tools/prepare-publication.py 0.1.1
+python3 tools/verify-release.py publish/releases/v0.1.1
 ```
 
 ```text
@@ -26,15 +26,15 @@ publish/
 │   ├── docs/                     # Public compatibility, qualification, publishing docs
 │   ├── LICENSE                   # MIT, Copyright (c) 2026 Kurt Telep
 │   ├── THIRD_PARTY_NOTICES.md
-│   ├── VERSION                   # 0.1.0
+│   ├── VERSION                   # 0.1.1
 │   └── README.md
 ├── export-manifest.json          # Local export ownership/hash record; not repo source
-└── releases/v0.1.0/              # Assets for GitHub Releases
-    ├── ahv-console_0.1.0_windows_amd64.zip
-    ├── ahv-console_0.1.0_darwin_arm64.tar.gz
-    ├── ahv-console_0.1.0_linux_amd64.tar.gz
-    ├── ahv-console_0.1.0_linux_arm64.tar.gz
-    ├── ahv-console_0.1.0_source.tar.gz
+└── releases/v0.1.1/              # Assets for GitHub Releases
+    ├── ahv-console_0.1.1_windows_amd64.zip
+    ├── ahv-console_0.1.1_darwin_arm64.tar.gz
+    ├── ahv-console_0.1.1_linux_amd64.tar.gz
+    ├── ahv-console_0.1.1_linux_arm64.tar.gz
+    ├── ahv-console_0.1.1_source.tar.gz
     ├── novnc-1.6.0-source.tar.gz
     ├── release-manifest.json
     ├── RELEASE_NOTES.md
@@ -74,13 +74,41 @@ Linux arm64, Windows amd64, and macOS arm64. These are the documented public
 GitHub-hosted runner labels; runner logs identify the actual environments.
 No Prism credentials or live infrastructure are used by CI.
 
-## Publish version 0.1.0
+## Update an existing public repository
+
+Keep its existing Git history. If `publish/github/` is already a Git repository,
+prepare into a fresh output directory instead of overwriting that working tree:
+
+```sh
+python3 tools/prepare-publication.py 0.1.1 --output publish/v0.1.1-staging
+python3 tools/verify-release.py publish/v0.1.1-staging/releases/v0.1.1
+
+git -C publish/github switch main
+git -C publish/github pull --ff-only
+git -C publish/github switch -c release/v0.1.1
+rsync -av --delete --exclude='.git/' publish/v0.1.1-staging/github/ publish/github/
+git -C publish/github status --short
+git -C publish/github diff
+git -C publish/github add -A
+git -C publish/github commit -m "Release v0.1.1: VM power and CD-ROM controls"
+git -C publish/github push -u origin release/v0.1.1
+gh pr create --repo OWNER/ahv-console --base main --head release/v0.1.1 --fill
+```
+
+Review the clean export before syncing; `rsync --delete` makes the public source
+tree match that reviewed export while preserving `.git/`. Commit development
+changes separately in the development repository. After the PR passes CI and
+is merged, update the public checkout to `main` before tagging.
+
+## Publish version 0.1.1
 
 After checking CI results, create and push the version tag:
 
 ```sh
-git tag v0.1.0
-git push origin v0.1.0
+git switch main
+git pull --ff-only
+git tag -a v0.1.1 -m "AHV Console v0.1.1"
+git push origin v0.1.1
 ```
 
 The tag-triggered release workflow checks that the tag matches `VERSION`, runs
@@ -105,11 +133,11 @@ published release's tag.
 
 If publishing the locally prepared artifacts instead, omit the tag-triggered
 workflow from your repository before pushing the tag, then upload from the
-workspace's `publish/releases/v0.1.0/` directory:
+workspace's `publish/releases/v0.1.1/` directory:
 
 ```sh
-gh release create v0.1.0 --repo OWNER/ahv-console --verify-tag \
-  --title "AHV Console v0.1.0" --notes-file RELEASE_NOTES.md \
+gh release create v0.1.1 --repo OWNER/ahv-console --verify-tag \
+  --title "AHV Console v0.1.1" --notes-file RELEASE_NOTES.md \
   ./*.zip ./*.tar.gz release-manifest.json RELEASE_NOTES.md SHA256SUMS
 ```
 

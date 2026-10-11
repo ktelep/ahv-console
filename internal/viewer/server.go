@@ -10,9 +10,11 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
+	"ahv-console/internal/control"
 	"ahv-console/internal/fault"
 	"ahv-console/internal/prism"
 	"github.com/coder/websocket"
@@ -21,12 +23,20 @@ import (
 type Dialer interface {
 	Dial(context.Context) (*websocket.Conn, error)
 }
+type Manager interface {
+	State(context.Context) control.State
+	Drives(context.Context) ([]prism.Drive, error)
+	Images(context.Context) ([]prism.Image, error)
+	Submit(control.Action) (control.Operation, error)
+	Operation(string) (control.Operation, bool)
+}
 type Server struct {
 	listener                        net.Listener
 	http                            *http.Server
 	origin, host, bootstrap, cookie string
 	cookieName                      string
 	dialer                          Dialer
+	manager                         Manager
 	ctx                             context.Context
 	cancel                          context.CancelFunc
 	mu                              sync.Mutex
@@ -60,6 +70,7 @@ func Start(ctx context.Context, d Dialer) (*Server, error) {
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	s := &Server{listener: ln, host: ln.Addr().String(), bootstrap: boot, cookie: cookie, dialer: d, ctx: ctx, cancel: cancel, sockets: map[*websocket.Conn]bool{}}
+	s.manager, _ = d.(Manager)
 	s.origin = "http://" + s.host
 	// Cookies are scoped by host, not TCP port. A unique name keeps two local
 	// invocations from overwriting each other's browser authorization.
@@ -99,6 +110,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.URL.RawQuery != "" {
 		http.Error(w, "Unexpected query", 400)
+		return
+	}
+	if strings.HasPrefix(r.URL.Path, "/api/") {
+		s.management(w, r)
 		return
 	}
 	switch r.URL.Path {
@@ -163,6 +178,151 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.FileServer(http.FS(assets())).ServeHTTP(w, r)
 	}
 }
+
+func jsonResponse(w http.ResponseWriter, code int, value any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	json.NewEncoder(w).Encode(value)
+}
+
+func (s *Server) management(w http.ResponseWriter, r *http.Request) {
+	mutation := r.URL.Path == "/api/actions"
+	if !s.authorized(r) || (mutation && r.Header.Get("Origin") != s.origin) || (r.Header.Get("Origin") != "" && r.Header.Get("Origin") != s.origin) {
+		http.Error(w, "Forbidden", 403)
+		return
+	}
+	method := "GET"
+	if mutation {
+		method = "POST"
+	}
+	if r.Method != method {
+		w.Header().Set("Allow", method)
+		http.Error(w, "Method not allowed", 405)
+		return
+	}
+	if s.manager == nil {
+		http.Error(w, "Management unavailable", 503)
+		return
+	}
+	ctx, cancel := context.WithTimeout(s.ctx, 2*time.Minute)
+	defer cancel()
+	stop := context.AfterFunc(r.Context(), cancel)
+	defer stop()
+	report := func(err error) {
+		message, _ := fault.Diagnostic(err)
+		jsonResponse(w, 502, map[string]string{"error": message})
+	}
+	switch r.URL.Path {
+	case "/api/state":
+		jsonResponse(w, 200, s.manager.State(ctx))
+	case "/api/drives":
+		drives, err := s.manager.Drives(ctx)
+		if err != nil {
+			report(err)
+			return
+		}
+		jsonResponse(w, 200, drives)
+	case "/api/images":
+		images, err := s.manager.Images(ctx)
+		if err != nil {
+			report(err)
+			return
+		}
+		jsonResponse(w, 200, images)
+	case "/api/actions":
+		if r.Header.Get("Content-Type") != "application/json" {
+			http.Error(w, "Expected application/json", 415)
+			return
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, 4096)
+		var body control.Action
+		decoder := json.NewDecoder(r.Body)
+		if !decodeAction(decoder, &body) {
+			http.Error(w, "Invalid action body", 400)
+			return
+		}
+		// Check membership before local acceptance, and again upstream at execution.
+		if body.Action == "insert" || body.Action == "eject" {
+			drives, err := s.manager.Drives(ctx)
+			if err != nil {
+				report(err)
+				return
+			}
+			found := false
+			for _, drive := range drives {
+				if drive.ID == body.DriveID {
+					found = true
+				}
+			}
+			if !found {
+				http.Error(w, "Selected drive does not belong to this VM; refresh drives", 400)
+				return
+			}
+		}
+		op, err := s.manager.Submit(body)
+		if err != nil {
+			message, _ := fault.Diagnostic(err)
+			code := 409
+			if f, ok := err.(*fault.Error); ok && f.Kind == fault.Configuration {
+				code = 400
+			}
+			jsonResponse(w, code, map[string]string{"error": message})
+			return
+		}
+		jsonResponse(w, 202, op)
+	default:
+		if strings.HasPrefix(r.URL.Path, "/api/operations/") {
+			id := strings.TrimPrefix(r.URL.Path, "/api/operations/")
+			if len(id) != 32 || strings.Contains(id, "/") {
+				http.Error(w, "Unknown operation", 404)
+				return
+			}
+			op, ok := s.manager.Operation(id)
+			if !ok {
+				http.Error(w, "Unknown operation", 404)
+				return
+			}
+			jsonResponse(w, 200, op)
+			return
+		}
+		http.Error(w, "Not found", 404)
+	}
+}
+
+func decodeAction(decoder *json.Decoder, body *control.Action) bool {
+	token, err := decoder.Token()
+	if err != nil || token != json.Delim('{') {
+		return false
+	}
+	seen := map[string]bool{}
+	for decoder.More() {
+		token, err = decoder.Token()
+		if err != nil {
+			return false
+		}
+		key, ok := token.(string)
+		if !ok || seen[key] {
+			return false
+		}
+		seen[key] = true
+		var value string
+		if decoder.Decode(&value) != nil {
+			return false
+		}
+		switch key {
+		case "action":
+			body.Action = value
+		case "driveId":
+			body.DriveID = value
+		case "imageId":
+			body.ImageID = value
+		default:
+			return false
+		}
+	}
+	token, err = decoder.Token()
+	return err == nil && token == json.Delim('}') && decoder.Decode(new(any)) == io.EOF
+}
 func (s *Server) track(ws *websocket.Conn) {
 	s.mu.Lock()
 	s.sockets[ws] = true
@@ -193,7 +353,7 @@ func (s *Server) proxy(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		s.lastError = message
 		s.mu.Unlock()
-		local.Close(websocket.StatusPolicyViolation, "Console unavailable; rerun the command.")
+		local.Close(websocket.StatusPolicyViolation, "Console unavailable; check viewer status.")
 		return
 	}
 	s.track(upstream)

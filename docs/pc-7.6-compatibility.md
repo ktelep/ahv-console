@@ -131,6 +131,99 @@ unqualified.
 
 ## Evidence limits
 
+### Power and CD-ROM schema contract (2026-10-11)
+
+The official VMM v4.3 and Prism v4.4 OpenAPI documents linked above were
+rechecked for these operations. The table is **schema evidence**. Separate
+controlled PC 7.6 live observations are recorded below and in
+`verification/vm-power-media-controls.md`; they do not qualify every role,
+guest OS, PC build, or image placement.
+
+| Operation | Exact deployment path | Body and success contract |
+| --- | --- | --- |
+| VM state | GET `/api/vmm/v4.3/ahv/config/vms/{extId}` | HTTP 200 `data` VM; `powerState`: `ON`, `OFF`, `PAUSED`, `UNDETERMINED`, `$UNKNOWN`, `$REDACTED` |
+| Power on | POST `/api/vmm/v4.3/ahv/config/vms/{extId}/$actions/power-on` | No body; HTTP 202 task reference |
+| Power off | POST `/api/vmm/v4.3/ahv/config/vms/{extId}/$actions/power-off` | No body; HTTP 202 task reference; forced shutdown |
+| Restart (hard) | POST `/api/vmm/v4.3/ahv/config/vms/{extId}/$actions/reset` | No body; HTTP 202 task reference; not power-cycle |
+| Restart guest OS | POST `/api/vmm/v4.3/ahv/config/vms/{extId}/$actions/guest-reboot` | Required `GuestPowerOptions` body; minimal schema-valid body `{}`; HTTP 202 task reference |
+| Shut down guest OS | POST `/api/vmm/v4.3/ahv/config/vms/{extId}/$actions/guest-shutdown` | Required `GuestPowerOptions` body; minimal schema-valid body `{}`; HTTP 202 task reference |
+| CD-ROM list/detail | GET `/api/vmm/v4.3/ahv/config/vms/{vmExtId}/cd-roms` and `/{extId}` | HTTP 200 `data` array/object of `CdRom` |
+| Mount ISO | POST `/api/vmm/v4.3/ahv/config/vms/{vmExtId}/cd-roms/{extId}/$actions/insert` | Required `CdRomInsertParams`; HTTP 202 task reference |
+| Eject | POST `/api/vmm/v4.3/ahv/config/vms/{vmExtId}/cd-roms/{extId}/$actions/eject` | No body; HTTP 202 task reference; never DELETE |
+| Images | GET `/api/vmm/v4.3/content/images` and `/{extId}` | HTTP 200 `data` array/object of `Image`; ISO enum is `ISO_IMAGE`, disk enum is `DISK_IMAGE` |
+| Task | GET `/api/prism/v4.4/config/tasks/{extId}` | HTTP 200 `data` Task; retain and path-encode complete prefixed task ID |
+
+All listed mutations require a UUID `NTNX-Request-Id`; preserve it across
+same-submission retries. The 202 `data.extId` is a task reference (wire type
+`prism.v4.config.TaskReference`), not completion. Task statuses and error fields
+are described above; no new live task outcomes are implied by this inspection.
+
+Guest requests use NGT according to the official operation descriptions.
+`GuestPowerOptions.guestPowerStateTransitionConfig` is optional, and its
+`shouldEnableScriptExec` and `shouldFailOnScriptFailure` fields are optional.
+The minimal body does not opt into scripts. NGT installation/readiness and
+guest policy behavior are not qualified by the failed guest requests observed
+below; failures must not trigger a hard-action fallback.
+
+Insertion body:
+
+```json
+{"backingInfo":{"dataSource":{"reference":{"$objectType":"vmm.v4.ahv.config.ImageReference","imageExtId":"<image UUID>"}}}}
+```
+
+`ImageReference.imageExtId` is required; `storageCluster` is optional and
+describes intended VM storage placement. Do not add it to imply image migration.
+`CdRom` has `extId`, `diskAddress.busType` (`IDE`/`SATA`), `diskAddress.index`,
+and optional `backingInfo` (`VmDisk`). Backing information includes `diskExtId`
+and optional `dataSource.reference`; unresolved backing must be shown as mounted
+media rather than empty.
+
+Both CD-ROM and image collections support zero-based `$page` and `$limit`
+1–100 (default 50). Image type filtering is documented as an OData enum literal
+`type eq Vmm.Content.ImageType'ISO_IMAGE'`; also check types locally.
+`metadata.totalAvailableResults` supplies the collection total. A failed or
+repeated page must not be presented as a complete inventory.
+
+Image `clusterLocationExtIds` describes where an image is located; it is not
+a guarantee of insertion success. Missing/redacted placement remains unknown.
+`placementPolicyStatus` describes policy compliance/enforcement, not a generic
+image-ready flag: entries include `complianceStatus`, `enforcementMode`,
+`policyClusterExtIds`, and `enforcedClusterExtIds`. Refresh image detail when
+list placement is insufficient. Show target-cluster location evidence, label
+known nonlocal placement as unavailable locally, and leave uncertain placement
+explicit. PC remains authoritative for insertion; no migration is initiated.
+
+Permissions are operation-specific: View Virtual Machine, View Virtual Machine
+CD ROM, View Image, Power On/Off Virtual Machine, Reset Virtual Machine, Guest
+Reboot/Shutdown Virtual Machine, Insert/Eject Virtual Machine CD ROM, and task
+reads. Visibility or console permission alone does not establish these grants.
+
+### Controlled power/media live observations (2026-10-11)
+
+With explicit user approval, the designated PC reported `pc.7.6`; the existing
+Ubuntu desktop VM was tested with the designated AHV DVD ISO on IDE 1. Power off,
+off-state insert, explicit power on, reset, and eject tasks succeeded. State read
+after insertion remained `OFF`; the drive's `dataSource.reference` reported
+`vmm.v4.ahv.config.ImageReference` and the selected image UUID. Power on preserved
+the media and triggered successful automatic console acquisition/RFB connection.
+After reset, Reconnect succeeded using the existing accepted authorization. Eject
+removed backing without deleting either drive. Final state was On, IDE 1 empty,
+and IDE 0's original customization media unchanged.
+
+Both minimal-body guest requests were accepted as asynchronous tasks, then
+`GuestRebootVm` and `GuestShutdownVm` failed with `VMM-10000` /
+`INTERNAL_ERROR`. The VM read reported no guest-tools configuration; the generic
+error does not establish the precise failure cause. The viewer displayed each
+failure and the VM remained On, with no hard fallback. Successful guest OS
+transitions remain unqualified. No guest tools/policies were changed.
+
+The tested ISO was `ISO_IMAGE`, with 944766976-byte size and target-cluster
+membership in `clusterLocationExtIds`. This verifies one local-placement success,
+not nonlocal/unknown placement or automatic transfer. Pagination, permission
+denial, timeout/cancellation, and protection cases remain synthetic coverage.
+See the feature verification record and `testdata/pc76/management.*.observed.json`
+for sanitized observed projections, separately labeled from synthetic fixtures.
+
 Success, invalid-authentication, and failed-console-task permission denial
 fixtures are captured in `testdata/pc76`. The permission denial and failed-task
 evidence come from the same observed asynchronous response; they are not two

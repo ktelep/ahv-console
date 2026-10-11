@@ -1,0 +1,17 @@
+{
+  "data": {
+    "extId": "00000000-0000-4000-8000-000000000003",
+    "diskAddress": {"busType": "IDE", "index": 1},
+    "isoType": "OTHER",
+    "backingInfo": {
+      "diskExtId": "00000000-0000-4000-8000-000000000003",
+      "diskSizeBytes": 944766976,
+      "dataSource": {
+        "reference": {
+          "$objectType": "vmm.v4.ahv.config.ImageReference",
+          "imageExtId": "00000000-0000-4000-8000-000000000004"
+        }
+      }
+    }
+  }
+}

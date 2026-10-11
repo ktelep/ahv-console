@@ -11,11 +11,45 @@
 <body>
   <header>
     <strong>AHV Console</strong>
-    <span id="status" role="status">Authorizing local session…</span>
+    <span id="vm-identity">Loading VM…</span>
+    <span id="power-state" role="status">Power: Unknown</span>
+    <details id="power-menu">
+      <summary>Power</summary>
+      <div class="menu" aria-label="Power actions">
+        <button type="button" data-action="power-on" disabled>Power on</button>
+        <button type="button" data-action="power-off" disabled>Power off</button>
+        <button type="button" data-action="reset" disabled>Restart (hard)</button>
+        <button type="button" data-action="guest-reboot" disabled>Restart guest OS</button>
+        <button type="button" data-action="guest-shutdown" disabled>Shut down guest OS</button>
+      </div>
+    </details>
+    <button id="media-toggle" type="button" aria-expanded="false" aria-controls="media-panel">CD-ROM</button>
     <button id="reconnect" type="button">Reconnect</button>
     <button id="cad" type="button" disabled>Ctrl+Alt+Del</button>
     <a href="/novnc/SOURCE.tar.gz">noVNC source</a>
   </header>
+  <div class="diagnostics">
+    <div id="operation-status" role="status" aria-live="polite"></div>
+    <div id="management-status" role="status" aria-live="polite"></div>
+    <div id="status" role="status">Authorizing local session…</div>
+  </div>
+  <section id="media-panel" aria-label="CD-ROM media" hidden>
+    <div class="media-heading"><h2>CD-ROM media</h2><button id="media-refresh" type="button">Refresh</button></div>
+    <div id="inventory-status" role="status" aria-live="polite"></div>
+    <label for="drive-select">CD-ROM drive</label>
+    <select id="drive-select"></select>
+    <p id="current-media" role="status">Loading drives…</p>
+    <label for="iso-search">Search ISO images</label>
+    <input id="iso-search" type="search" autocomplete="off" placeholder="Search by name">
+    <label for="iso-select">ISO image (name · size · availability)</label>
+    <select id="iso-select" size="5"></select>
+    <p id="iso-status" role="status"></p>
+    <div class="media-actions">
+      <button id="mount" type="button" disabled>Mount ISO</button>
+      <button id="eject" type="button" disabled>Eject</button>
+      <button id="media-close" type="button">Close CD-ROM panel</button>
+    </div>
+  </section>
   <main id="screen" aria-label="VM console"></main>
 </body>
 </html>

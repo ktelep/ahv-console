@@ -16,6 +16,8 @@ PUBLIC_DOCS = (
     "docs/asset-provenance.md", "docs/pc-7.6-compatibility.md",
     "docs/publishing.md", "docs/verification/release-0.1.0.md",
     "docs/verification/linux-arm64-test.md", "docs/verification/pc-7.6-handshake.json",
+    "docs/verification/vm-power-media-controls.md",
+    "docs/verification/release-0.1.1.md",
 )
 PUBLIC_DIRS = (".github", "cmd", "internal", "testdata", "tools")
 REQUIRED_NOTICES = (
