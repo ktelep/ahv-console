@@ -1,0 +1,8 @@
+{
+  "data": {
+    "extId": "ZXJnb24=:00000000-0000-4000-8000-000000000001",
+    "operation": "GuestRebootVm",
+    "status": "FAILED",
+    "errorMessages": [{"code": "VMM-10000", "errorGroup": "INTERNAL_ERROR"}]
+  }
+}

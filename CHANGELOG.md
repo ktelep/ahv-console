@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.1.1
+
+- Add a state-aware Power menu: Power on, Power off, Restart (hard), Restart guest
+  OS, and Shut down guest OS. Hard restart uses reset; guest failures never trigger
+  a hard-action fallback.
+- Add CD-ROM drive selection, searchable ISO inventory, independent Mount ISO
+  and Eject actions, and cluster-location availability labels.
+- Start the viewer for powered-off VMs before console-token acquisition and
+  automatically connect after explicit startup reaches observed On state.
+- Keep management available after console failures; track asynchronous actions,
+  serialize conflicting mutations, and report unconfirmed outcomes without replay.
+- Protect management endpoints with invocation cookies, exact Host/Origin checks,
+  strict bounded JSON bodies, and selected-VM/device validation.
+- Refresh state while visible, label stale state, and pause routine polling when
+  hidden. Simplify media labels by hiding UUIDs and style Power like toolbar buttons.
+- Record controlled PC 7.6 power/media verification and synthetic failure/protection
+  coverage. Guest reboot/shutdown failed on the designated VM and successful guest
+  transitions remain unqualified; see `docs/verification/release-0.1.1.md`.
+- Preserve standalone embedded packaging and the existing four supported targets
+  without adding runtime dependencies.
+
 ## 0.1.0
 
 Initial public release.

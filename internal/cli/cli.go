@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"ahv-console/internal/control"
 	"ahv-console/internal/fault"
 	"ahv-console/internal/platform"
 	"ahv-console/internal/prism"
@@ -53,6 +54,10 @@ func Main() {
 }
 
 func Run(ctx context.Context, args []string, env func(string) string, out, errOut io.Writer) error {
+	return run(ctx, args, env, out, errOut, platform.Open)
+}
+
+func run(ctx context.Context, args []string, env func(string) string, out, errOut io.Writer, launch func(string) error) error {
 	c, err := Parse(args, env)
 	if err != nil {
 		return err
@@ -96,12 +101,10 @@ func Run(ctx context.Context, args []string, env func(string) string, out, errOu
 		return err
 	}
 	fmt.Fprintf(out, "Opening %q (cluster %q, UUID %s)\n", vm.Name, vm.ClusterName, vm.ID)
-	session, err := pc.Console(setupCtx, vm.ID)
-	if err != nil {
-		return err
-	}
 	setupCancel()
-	server, err := viewer.Start(ctx, session)
+	controller := control.New(ctx, pc, vm, 2*time.Minute)
+	defer controller.Close()
+	server, err := viewer.Start(ctx, controller)
 	if err != nil {
 		return err
 	}
@@ -110,7 +113,7 @@ func Run(ctx context.Context, args []string, env func(string) string, out, errOu
 	fmt.Fprintln(out, "Keep this command running. Press Ctrl+C to close the session.")
 	if !c.NoBrowser {
 		go func() {
-			if platform.Open(server.URL()) != nil {
+			if launch(server.URL()) != nil {
 				fmt.Fprintln(errOut, "Browser launch failed. Open the printed Console URL manually; the viewer remains available.")
 			}
 		}()

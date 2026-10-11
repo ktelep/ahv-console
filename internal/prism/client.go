@@ -1,6 +1,7 @@
 package prism
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/tls"
@@ -123,17 +124,34 @@ func responseError(status int) error {
 }
 
 func (c *Client) request(ctx context.Context, method, path string, query url.Values, requestID string, out any) (int, error) {
+	return c.requestOperation(ctx, method, path, query, requestID, nil, "", out)
+}
+
+const maxRequest = 64 << 10
+
+func (c *Client) requestOperation(ctx context.Context, method, path string, query url.Values, requestID string, body any, operation string, out any) (int, error) {
+	var reader io.Reader
+	if body != nil {
+		b, err := json.Marshal(body)
+		if err != nil || len(b) > maxRequest {
+			return 0, fault.New(fault.Protocol, "could not encode bounded PC request body.")
+		}
+		reader = bytes.NewReader(b)
+	}
 	u := *c.base
 	// path is assembled only from fixed API paths and validated identifiers.
 	u.Path, _ = url.PathUnescape(path)
 	u.RawPath = path
 	u.RawQuery = query.Encode()
-	req, err := http.NewRequestWithContext(ctx, method, u.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, method, u.String(), reader)
 	if err != nil {
 		return 0, fault.New(fault.Protocol, "could not construct PC request.")
 	}
 	req.SetBasicAuth(c.username, c.password)
 	req.Header.Set("Accept", "application/json")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	if requestID != "" {
 		req.Header.Set("NTNX-Request-Id", requestID)
 	}
@@ -143,6 +161,20 @@ func (c *Client) request(ctx context.Context, method, path string, query url.Val
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		if operation != "" {
+			switch resp.StatusCode {
+			case 403:
+				return resp.StatusCode, fault.New(fault.Permission, "PC denied "+operation+"; verify permission for this operation and selected resource.")
+			case 404, 405:
+				return resp.StatusCode, fault.New(fault.Protocol, operation+" is unavailable or the selection is stale; refresh and check PC compatibility.")
+			case 400, 409, 412, 422:
+				return resp.StatusCode, fault.New(fault.Task, "PC rejected "+operation+"; refresh state and check its prerequisites in Prism.")
+			case 401:
+				return resp.StatusCode, responseError(resp.StatusCode)
+			default:
+				return resp.StatusCode, fault.New(fault.Connection, fmt.Sprintf("%s failed: PC returned HTTP %d; check PC availability and access.",operation,resp.StatusCode))
+			}
+		}
 		return resp.StatusCode, responseError(resp.StatusCode)
 	}
 	b, err := io.ReadAll(io.LimitReader(resp.Body, maxResponse+1))
@@ -156,9 +188,10 @@ func (c *Client) request(ctx context.Context, method, path string, query url.Val
 }
 
 type VM struct {
-	ID      string `json:"extId"`
-	Name    string `json:"name"`
-	Cluster struct {
+	ID         string `json:"extId"`
+	Name       string `json:"name"`
+	PowerState string `json:"powerState"`
+	Cluster    struct {
 		ID string `json:"extId"`
 	} `json:"cluster"`
 	ClusterName string `json:"-"`
@@ -300,92 +333,34 @@ func (c *Client) Console(ctx context.Context, vmID string) (*Session, error) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, c.setupTimeout)
 	defer cancel()
-	id, err := requestUUID()
+	taskID, _, err := c.submitTask(ctx, vmsPath+"/"+vmID+"/$actions/generate-console-token", nil, "console-token generation")
 	if err != nil {
 		return nil, err
 	}
-	var r struct {
-		Data struct {
-			ID string `json:"extId"`
-		} `json:"data"`
+	task, err := c.pollTask(ctx, taskID, "console-token generation")
+	if err != nil {
+		return nil, err
 	}
-	for attempt := 0; ; attempt++ {
-		status, e := c.request(ctx, "POST", vmsPath+"/"+vmID+"/$actions/generate-console-token", nil, id, &r)
-		if e == nil {
-			if status != 202 {
-				return nil, fault.New(fault.Protocol, "PC did not accept console generation as an asynchronous task.")
-			}
-			break
+	values := map[string]string{}
+	for _, pair := range task.Details {
+		if pair.Name != "WsUri" && pair.Name != "VmConsoleToken" {
+			continue
 		}
-		var f *fault.Error
-		retryable := status == 502 || status == 503 || status == 504 || (status == 0 && errors.As(e, &f) && f.Kind == fault.Connection)
-		if attempt >= 2 || !retryable {
-			return nil, e
+		var s string
+		if _, exists := values[pair.Name]; exists || json.Unmarshal(pair.Value, &s) != nil || s == "" {
+			return nil, fault.New(fault.Protocol, "console task result contains duplicate, empty, or non-string fields.")
 		}
-		if err := wait(ctx, time.Duration(attempt+1)*c.pollInterval); err != nil {
-			return nil, err
-		}
+		values[pair.Name] = s
 	}
-	if !taskPattern.MatchString(r.Data.ID) {
-		return nil, fault.New(fault.Protocol, "PC returned an invalid console task reference.")
+	destination, err := c.consoleURL(values["WsUri"], values["VmConsoleToken"])
+	if err != nil {
+		return nil, err
 	}
-	delay := c.pollInterval
-	for {
-		var task struct {
-			Data struct {
-				Status string `json:"status"`
-				Errors []struct {
-					Code  string `json:"code"`
-					Group string `json:"errorGroup"`
-				} `json:"errorMessages"`
-				Details []struct {
-					Name  string          `json:"name"`
-					Value json.RawMessage `json:"value"`
-				} `json:"completionDetails"`
-			} `json:"data"`
-		}
-		_, err := c.request(ctx, "GET", "/api/prism/v4.4/config/tasks/"+url.PathEscape(r.Data.ID), nil, "", &task)
-		if err != nil {
-			return nil, err
-		}
-		switch task.Data.Status {
-		case "SUCCEEDED":
-			values := map[string]string{}
-			for _, pair := range task.Data.Details {
-				if pair.Name != "WsUri" && pair.Name != "VmConsoleToken" {
-					continue
-				}
-				var s string
-				if _, exists := values[pair.Name]; exists || json.Unmarshal(pair.Value, &s) != nil || s == "" {
-					return nil, fault.New(fault.Protocol, "console task result contains duplicate, empty, or non-string fields.")
-				}
-				values[pair.Name] = s
-			}
-			destination, err := c.consoleURL(values["WsUri"], values["VmConsoleToken"])
-			if err != nil {
-				return nil, err
-			}
-			parsed, _ := url.Parse(destination)
-			if !strings.EqualFold(strings.TrimPrefix(parsed.Path, "/console/launch/"), vmID) {
-				return nil, fault.New(fault.Protocol, "console task returned a different VM destination.")
-			}
-			return &Session{client: c, destination: destination}, nil
-		case "FAILED", "CANCELED":
-			for _, message := range task.Data.Errors {
-				if message.Code == "VMM-30500" || message.Group == "VM_UNAUTHORIZED_REQUEST" {
-					return nil, fault.New(fault.Permission, "PC denied console-token generation; verify Generate VM Console Token permission for the selected VM.")
-				}
-			}
-			return nil, fault.New(fault.Task, "PC console-token task failed or was canceled; inspect the task in Prism and check console permissions.")
-		case "QUEUED", "RUNNING", "CANCELING", "SUSPENDED":
-		default:
-			return nil, fault.New(fault.Protocol, "PC returned an unknown console task status.")
-		}
-		if err := wait(ctx, delay); err != nil {
-			return nil, err
-		}
-		delay = min(delay*2, 2*time.Second)
+	parsed, _ := url.Parse(destination)
+	if !strings.EqualFold(strings.TrimPrefix(parsed.Path, "/console/launch/"), vmID) {
+		return nil, fault.New(fault.Protocol, "console task returned a different VM destination.")
 	}
+	return &Session{client: c, destination: destination}, nil
 }
 
 func (c *Client) consoleURL(uri, token string) (string, error) {

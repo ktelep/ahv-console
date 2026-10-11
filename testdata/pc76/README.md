@@ -43,3 +43,26 @@ Synthetic fixtures remain useful for generic task failures and immediate HTTP
 403 handling, neither of which should be confused with the observed asynchronous
 permission-denial behavior. No passwords, cookie values, or live tokens are
 present in the observed negative fixture.
+
+## Power/media observations (2026-10-11)
+
+After explicit user approval, the designated PC 7.6 Ubuntu test VM and ISO were
+used for live viewer verification. See
+`docs/verification/vm-power-media-controls.md` for results and limits.
+
+- `management.insert-task.observed.json`: reduced projection of the observed
+  successful insert task, independently retrieved from the selected VM's PC
+  v4.4 task inventory after the viewer completed mounting.
+- `management.guest-reboot-task.observed.json` and
+  `management.guest-shutdown-task.observed.json`: reduced projections of observed
+  failed guest requests, retaining actual operation, status, error code and group.
+  Both returned `VMM-10000` / `INTERNAL_ERROR`; neither is guest-success evidence.
+- `management.mounted-drive.observed.json`: reduced drive projection after mount
+  while the VM remained Off, retaining IDE 1, backing size and image reference.
+  The collection metadata and unrelated backing/storage properties are omitted.
+
+Task/drive/image UUIDs are replaced with synthetic UUIDs. The task prefix,
+operation names, statuses, size, discriminator, error codes and groups are
+observed values. Unrelated task data, messages, argument maps, endpoint addresses,
+ownership and timestamps are omitted. These projections are not raw captures
+and do not prove guest prerequisites, retry behavior, or role coverage.
